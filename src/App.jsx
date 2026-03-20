@@ -75,7 +75,7 @@ const CHANNELS_DATA = [
 ];
 
 const PLANET_NAMES = {
-  Sun: '太陽', Earth: '地球', Moon: '月亮', 
+  Sun: '太陽', Earth: '地球', Moon: '月亮',
   NorthNode: '北交點', SouthNode: '南交點',
   Mercury: '水星', Venus: '金星', Mars: '火星',
   Jupiter: '木星', Saturn: '土星', Uranus: '天王星', Neptune: '海王星', Pluto: '冥王星'
@@ -83,12 +83,23 @@ const PLANET_NAMES = {
 
 // 指定星體顯示的順序
 const PLANET_ORDER = [
-  'Sun', 'Earth', 'Moon', 'NorthNode', 'SouthNode', 
-  'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 
+  'Sun', 'Earth', 'Moon', 'NorthNode', 'SouthNode',
+  'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn',
   'Uranus', 'Neptune', 'Pluto'
 ];
 
 const MOTORS = ['Heart', 'Sacral', 'Root', 'SolarPlexus'];
+
+const getRemainingTimeMsg = (untilDate, fromDate) => {
+  const diffMs = untilDate.getTime() - fromDate.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  if (diffHours < 24) {
+    if (diffHours <= 0) return '即將結束';
+    return `大約還有 ${diffHours} 小時`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  return `大約還有 ${diffDays} 天`;
+};
 
 export default function App() {
   const [engineLoaded, setEngineLoaded] = useState(false);
@@ -153,45 +164,65 @@ export default function App() {
         const offset = 301.875;
         let shiftedLon = lon - offset;
         if (shiftedLon < 0) shiftedLon += 360;
-        
+
         const gateWidth = 360 / 64; // 5.625度
         let gateIndex = Math.floor(shiftedLon / gateWidth);
         if (gateIndex >= 64) gateIndex = 63; // 防呆設計
-        
+
         const gate = GATES_SEQUENCE[gateIndex];
         const line = Math.floor((shiftedLon % gateWidth) / (gateWidth / 6)) + 1;
         return { gate, line, gateIndex };
       };
 
-      const time = new window.Astronomy.AstroTime(currentTime);
-      const planets = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto'];
-      
-      const currentTransits = {};
-      let sunLon = 0;
+      const getPlanetLon = (p, t) => {
+        if (p === 'NorthNode' || p === 'SouthNode') {
+          const T = t.tt / 36525.0;
+          let omega = 125.04452 - 1934.136261 * T;
+          omega = omega % 360;
+          if (omega < 0) omega += 360;
+          return p === 'NorthNode' ? omega : (omega + 180) % 360;
+        } else if (p === 'Earth') {
+          const geo = window.Astronomy.GeoVector('Sun', t, true);
+          const ecliptic = window.Astronomy.Ecliptic(geo);
+          const sunLon = ecliptic.elon !== undefined ? ecliptic.elon : ecliptic.lon;
+          return (sunLon + 180) % 360;
+        } else {
+          const geo = window.Astronomy.GeoVector(p, t, true);
+          const ecliptic = window.Astronomy.Ecliptic(geo);
+          return ecliptic.elon !== undefined ? ecliptic.elon : ecliptic.lon;
+        }
+      };
 
-      planets.forEach(p => {
-        const geo = window.Astronomy.GeoVector(p, time, true);
-        const ecliptic = window.Astronomy.Ecliptic(geo);
-        const currentLon = ecliptic.elon !== undefined ? ecliptic.elon : ecliptic.lon;
-        
-        if (p === 'Sun') sunLon = currentLon;
-        currentTransits[p] = calculateGate(currentLon);
+      const time = new window.Astronomy.AstroTime(currentTime);
+      const planetsList = ['Sun', 'Earth', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'NorthNode', 'SouthNode'];
+
+      const currentTransits = {};
+
+      planetsList.forEach(p => {
+        const currentLon = getPlanetLon(p, time);
+        const gateData = calculateGate(currentLon);
+
+        let stepHours = 24;
+        if (p === 'Moon') stepHours = 1;
+        else if (['Sun', 'Earth', 'Mercury', 'Venus'].includes(p)) stepHours = 6;
+        else if (p === 'Mars') stepHours = 12;
+
+        let searchTime = new Date(currentTime);
+        let leaveTime = null;
+        for (let i = 0; i < 3000; i++) {
+          searchTime.setHours(searchTime.getHours() + stepHours);
+          const fTime = new window.Astronomy.AstroTime(searchTime);
+          const fLon = getPlanetLon(p, fTime);
+          const fGate = calculateGate(fLon);
+          if (fGate.gateIndex !== gateData.gateIndex) {
+            leaveTime = new Date(searchTime);
+            break;
+          }
+        }
+
+        currentTransits[p] = { ...gateData, leaveTime, planet: p };
       });
 
-      // 人類圖的地球永遠在太陽對面
-      currentTransits['Earth'] = calculateGate((sunLon + 180) % 360);
-
-      // 計算月交點 (Lunar Nodes)
-      // time.tt 是自 J2000.0 (2000年1月1日12:00TT) 起算的日數
-      // 平交點黃經計算公式: Ω = 125.04452 - 1934.136261 * T (T為儒略世紀數)
-      const T = time.tt / 36525.0;
-      let omega = 125.04452 - 1934.136261 * T;
-      omega = omega % 360;
-      if (omega < 0) omega += 360;
-      
-      currentTransits['NorthNode'] = calculateGate(omega); // 北交點
-      currentTransits['SouthNode'] = calculateGate((omega + 180) % 360); // 南交點 (與北交點對面)
-      
       setTransits(currentTransits);
       setErrorMsg(null);
     } catch (err) {
@@ -204,10 +235,16 @@ export default function App() {
   const analysis = useMemo(() => {
     if (!transits) return null;
 
-    // 收集所有流日閘門
-    const transitGatesSet = new Set(Object.values(transits).map(t => t.gate));
+    // 收集所有流日閘門與觸發的星體
+    const transitGateToPlanets = {};
+    Object.values(transits).forEach(data => {
+      if (!transitGateToPlanets[data.gate]) transitGateToPlanets[data.gate] = [];
+      transitGateToPlanets[data.gate].push(data);
+    });
+
+    const transitGatesSet = new Set(Object.keys(transitGateToPlanets).map(Number));
     const transitGates = Array.from(transitGatesSet);
-    
+
     // 結合你的原生閘門與流日閘門
     const allActiveGates = new Set([...USER_GATES, ...transitGates]);
 
@@ -215,20 +252,56 @@ export default function App() {
     const activeChannels = [];
     const definedCentersSet = new Set();
 
+    const getGateMaxTime = (planetsData) => {
+      if (!planetsData || planetsData.length === 0) return null;
+      return new Date(Math.max(...planetsData.map(p => p.leaveTime.getTime())));
+    };
+
     CHANNELS_DATA.forEach(channel => {
       if (allActiveGates.has(channel.gates[0]) && allActiveGates.has(channel.gates[1])) {
-        
+
         const hasGate1User = USER_GATES.includes(channel.gates[0]);
         const hasGate2User = USER_GATES.includes(channel.gates[1]);
-        const hasGate1Transit = transitGatesSet.has(channel.gates[0]);
-        const hasGate2Transit = transitGatesSet.has(channel.gates[1]);
+        const gate1Planets = transitGateToPlanets[channel.gates[0]] || [];
+        const gate2Planets = transitGateToPlanets[channel.gates[1]] || [];
+
+        const hasGate1Transit = gate1Planets.length > 0;
+        const hasGate2Transit = gate2Planets.length > 0;
 
         let source = '';
-        if (hasGate1User && hasGate2User) source = '原生通道 (Native)';
-        else if (hasGate1Transit && hasGate2Transit && !hasGate1User && !hasGate2User) source = '純流日接通 (Transit)';
-        else source = '流日與原生接合 (Bridge)';
+        let activeUntil = null;
+        let activePlanetsMsg = '';
 
-        activeChannels.push({ ...channel, source });
+        if (hasGate1User && hasGate2User) {
+          source = '原生通道 (Native)';
+        } else if (hasGate1Transit && hasGate2Transit && !hasGate1User && !hasGate2User) {
+          source = '純流日接通 (Transit)';
+          const t1 = getGateMaxTime(gate1Planets);
+          const t2 = getGateMaxTime(gate2Planets);
+          activeUntil = new Date(Math.min(t1.getTime(), t2.getTime()));
+
+          const p1Names = gate1Planets.map(p => PLANET_NAMES[p.planet]).join('、');
+          const p2Names = gate2Planets.map(p => PLANET_NAMES[p.planet]).join('、');
+          activePlanetsMsg = `由 ${p1Names} (閘門 ${channel.gates[0]}) 與 ${p2Names} (閘門 ${channel.gates[1]}) 接通`;
+        } else {
+          source = '流日與原生接合 (Bridge)';
+          if (hasGate1Transit && !hasGate1User) {
+            activeUntil = getGateMaxTime(gate1Planets);
+            const p1Names = gate1Planets.map(p => PLANET_NAMES[p.planet]).join('、');
+            activePlanetsMsg = `由 ${p1Names} 接通閘門 ${channel.gates[0]}`;
+          } else if (hasGate2Transit && !hasGate2User) {
+            activeUntil = getGateMaxTime(gate2Planets);
+            const p2Names = gate2Planets.map(p => PLANET_NAMES[p.planet]).join('、');
+            activePlanetsMsg = `由 ${p2Names} 接通閘門 ${channel.gates[1]}`;
+          }
+        }
+
+        activeChannels.push({
+          ...channel,
+          source,
+          activeUntil,
+          activePlanetsMsg
+        });
         definedCentersSet.add(channel.centers[0]);
         definedCentersSet.add(channel.centers[1]);
       }
@@ -297,10 +370,10 @@ export default function App() {
 
     // 計算下一個月亮閘門
     const nextMoonGate = GATES_SEQUENCE[(moonData.gateIndex + 1) % 64];
-    
+
     // 預測流日接通
     const futureGatesSet = new Set(allActiveGates);
-    futureGatesSet.delete(moonGate); 
+    futureGatesSet.delete(moonGate);
     futureGatesSet.add(nextMoonGate);
 
     const nextMoonChannels = [];
@@ -362,7 +435,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
-        
+
         {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-4">
           <div>
@@ -384,7 +457,7 @@ export default function App() {
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Moon className="w-48 h-48" />
           </div>
-          
+
           <div className="relative z-10">
             <h2 className="text-xl font-semibold flex items-center gap-2 mb-4 text-purple-300">
               <Moon className="w-5 h-5" /> 如今的月亮
@@ -394,7 +467,7 @@ export default function App() {
                 閘門 {transits['Moon'].gate}.{transits['Moon'].line}
               </span>
             </div>
-            
+
             {analysis.moonChannels.length > 0 ? (
               <div className="bg-purple-900/30 border border-purple-500/30 rounded-xl p-4 mt-4 mb-4">
                 <p className="text-purple-200 font-medium flex items-center gap-2 mb-2">
@@ -423,7 +496,7 @@ export default function App() {
                 <span className="text-xl font-bold text-slate-300">
                   進入 閘門 {analysis.nextMoonGate}
                 </span>
-                
+
                 {analysis.nextMoonChannels.length > 0 ? (
                   <span className="text-sm bg-indigo-900/60 text-indigo-200 px-3 py-1.5 rounded-lg border border-indigo-700 shadow-sm">
                     預計接通：{analysis.nextMoonChannels.map(c => `「${c.name}通道」`).join('、')}
@@ -458,16 +531,15 @@ export default function App() {
             <h2 className="text-xl font-semibold flex items-center gap-2 mb-4 text-blue-300">
               <Activity className="w-5 h-5" /> 今日的能量外衣
             </h2>
-            
+
             <div className="mb-4">
-              <span className={`inline-block px-4 py-2 rounded-lg text-xl font-bold ${
-                analysis.currentType.includes('反映者') ? 'bg-slate-800 text-slate-300' : 
+              <span className={`inline-block px-4 py-2 rounded-lg text-xl font-bold ${analysis.currentType.includes('反映者') ? 'bg-slate-800 text-slate-300' :
                 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/20'
-              }`}>
+                }`}>
                 {analysis.currentType}
               </span>
             </div>
-            
+
             <p className="text-slate-300 leading-relaxed text-lg">
               {analysis.typeDescription}
             </p>
@@ -478,7 +550,7 @@ export default function App() {
             <h2 className="text-xl font-semibold mb-4 text-emerald-300">
               目前開啟的通道 ({analysis.activeChannels.length})
             </h2>
-            
+
             {analysis.activeChannels.length === 0 ? (
               <p className="text-slate-400 italic mt-4">
                 此時此刻天上沒有星體為你接通任何通道，你處於最純粹的「反映者」狀態，感受並放大周遭的環境吧！
@@ -491,8 +563,21 @@ export default function App() {
                       <div>
                         <span className="font-bold text-lg text-emerald-100">{ch.id} {ch.name}通道</span>
                         <p className="text-xs text-slate-400 mt-1">{ch.source}</p>
+
+                        {ch.activePlanetsMsg && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-sm text-yellow-300 flex items-center gap-1.5">
+                              <span className="text-yellow-400">✨</span> {ch.activePlanetsMsg}
+                            </p>
+                            {ch.activeUntil && (
+                              <p className="text-sm text-slate-300 flex items-center gap-1.5">
+                                <span className="text-slate-400">⏳</span> 預計維持至：{ch.activeUntil.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} ({getRemainingTimeMsg(ch.activeUntil, currentTime)})
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <Activity className="w-5 h-5 text-emerald-500/40" />
+                      <Activity className="w-5 h-5 text-emerald-500/40 shrink-0" />
                     </div>
                     <div className="mt-2 pt-2 border-t border-slate-700/50">
                       <p className="text-sm text-slate-300 leading-relaxed">
@@ -515,27 +600,25 @@ export default function App() {
             {PLANET_ORDER.map(planet => {
               const data = transits[planet];
               if (!data) return null;
-              
+
               const isMoon = planet === 'Moon';
               const isSun = planet === 'Sun';
               const isNode = planet === 'NorthNode' || planet === 'SouthNode';
-              
+
               return (
-                <div key={planet} 
-                  className={`flex flex-col p-3 rounded-lg border ${
-                    isMoon ? 'bg-purple-900/20 border-purple-500/50' : 
-                    isSun ? 'bg-yellow-900/10 border-yellow-500/30' : 
-                    isNode ? 'bg-indigo-900/20 border-indigo-500/40' :
-                    'bg-slate-800/30 border-slate-700/50'
-                  }`}
+                <div key={planet}
+                  className={`flex flex-col p-3 rounded-lg border ${isMoon ? 'bg-purple-900/20 border-purple-500/50' :
+                    isSun ? 'bg-yellow-900/10 border-yellow-500/30' :
+                      isNode ? 'bg-indigo-900/20 border-indigo-500/40' :
+                        'bg-slate-800/30 border-slate-700/50'
+                    }`}
                 >
                   <span className="text-sm text-slate-400 mb-1">{PLANET_NAMES[planet]}</span>
-                  <span className={`font-mono font-bold text-lg ${
-                    isMoon ? 'text-purple-300' : 
-                    isSun ? 'text-yellow-300' : 
-                    isNode ? 'text-indigo-300' :
-                    'text-slate-200'
-                  }`}>
+                  <span className={`font-mono font-bold text-lg ${isMoon ? 'text-purple-300' :
+                    isSun ? 'text-yellow-300' :
+                      isNode ? 'text-indigo-300' :
+                        'text-slate-200'
+                    }`}>
                     {data.gate}.{data.line}
                   </span>
                 </div>
