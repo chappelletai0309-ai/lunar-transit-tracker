@@ -86,6 +86,18 @@ const CENTER_NAMES = {
   Spleen: '直覺中心', Sacral: '薦骨中心', Root: '根部中心'
 };
 
+const CENTER_DESCRIPTIONS = {
+  Head: '靈感與壓力的源頭，帶來對問題的好奇與思考衝動。今天你的腦袋可能充滿各種問號與靈光一閃！',
+  Ajna: '分析、概念化與整理資訊的中心。今天你的思路特別清晰，容易看見事物的邏輯架構。',
+  Throat: '溝通、行動與顯化的中心。今天你特別有表達慾，說話、寫作或採取行動的能量比平常高。',
+  G: '自我認同、方向感與愛的中心。今天你對「我是誰、我要去哪」有更強烈的感受，磁性也更強。',
+  Heart: '意志力、自我價值與承諾的中心。今天你的自信心與執行力被暫時加乘，做了承諾記得量力而為。',
+  SolarPlexus: '情緒、感受與靈性的中心。今天你的情緒波動可能比平常更強烈，等待情緒清晰再做重要決定。',
+  Spleen: '直覺、本能與健康的中心。今天你的第六感特別敏銳，注意那些一閃即逝的直覺訊號。',
+  Sacral: '生命力、工作能量與回應的中心。今天你充滿行動力，找有回應的事全力投入，睡前記得淨空能量。',
+  Root: '壓力、驅動力與腎上腺素的中心。今天你可能感受到一股「想把事情做完」的推動壓力。'
+};
+
 // 指定星體顯示的順序
 const PLANET_ORDER = [
   'Sun', 'Earth', 'Moon', 'NorthNode', 'SouthNode',
@@ -554,11 +566,12 @@ export default function App() {
                 <Zap className="w-4 h-4 text-yellow-400" /> 目前點亮的中心
               </h3>
               {analysis.definedCenters && analysis.definedCenters.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2">
                   {analysis.definedCenters.map(center => (
-                    <span key={center} className="px-3 py-1 bg-yellow-900/40 text-yellow-200 border border-yellow-700/50 rounded-full text-sm">
-                      {CENTER_NAMES[center]}
-                    </span>
+                    <div key={center} className="bg-yellow-900/20 border border-yellow-700/40 rounded-lg px-3 py-2">
+                      <p className="text-yellow-300 font-semibold text-sm mb-0.5">{CENTER_NAMES[center]}</p>
+                      <p className="text-slate-300 text-xs leading-relaxed">{CENTER_DESCRIPTIONS[center]}</p>
+                    </div>
                   ))}
                 </div>
               ) : (
