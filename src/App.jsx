@@ -78,7 +78,12 @@ const PLANET_NAMES = {
   Sun: '太陽', Earth: '地球', Moon: '月亮',
   NorthNode: '北交點', SouthNode: '南交點',
   Mercury: '水星', Venus: '金星', Mars: '火星',
-  Jupiter: '木星', Saturn: '土星', Uranus: '天王星', Neptune: '海王星', Pluto: '冥王星'
+};
+
+const CENTER_NAMES = {
+  Head: '頭腦中心', Ajna: '邏輯中心', Throat: '喉嚨中心',
+  G: 'G中心', Heart: '意志力中心', SolarPlexus: '情緒中心',
+  Spleen: '直覺中心', Sacral: '薦骨中心', Root: '根部中心'
 };
 
 // 指定星體顯示的順序
@@ -386,7 +391,7 @@ export default function App() {
       }
     });
 
-    return { activeChannels, currentType, typeDescription, moonGate, moonChannels, nextMoonGate, nextMoonChannels };
+    return { activeChannels, currentType, typeDescription, moonGate, moonChannels, nextMoonGate, nextMoonChannels, definedCenters: Array.from(definedCentersSet) };
   }, [transits]);
 
   // 5. 計算下一次月亮回歸日
@@ -540,9 +545,26 @@ export default function App() {
               </span>
             </div>
 
-            <p className="text-slate-300 leading-relaxed text-lg">
+            <p className="text-slate-300 leading-relaxed text-lg mb-6">
               {analysis.typeDescription}
             </p>
+
+            <div className="pt-4 border-t border-slate-700/50">
+              <h3 className="text-sm font-semibold text-slate-400 mb-3 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-400" /> 目前點亮的中心
+              </h3>
+              {analysis.definedCenters && analysis.definedCenters.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {analysis.definedCenters.map(center => (
+                    <span key={center} className="px-3 py-1 bg-yellow-900/40 text-yellow-200 border border-yellow-700/50 rounded-full text-sm">
+                      {CENTER_NAMES[center]}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm italic">沒有中心被點亮，維持完全開放的狀態。</p>
+              )}
+            </div>
           </section>
 
           {/* 接通的通道列表 */}
