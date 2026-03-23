@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Moon, Sun, Star, Activity, Zap, RefreshCw, Calendar, MessageSquareText } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Moon, Sun, Star, Activity, Zap, RefreshCw, Calendar } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
@@ -125,10 +124,6 @@ export default function App() {
   const [transits, setTransits] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [user, setUser] = useState(null);
-
-  // AI 建議狀態
-  const [aiAdvice, setAiAdvice] = useState('');
-  const [isAiLoading, setIsAiLoading] = useState(false);
 
   // 0. 初始化 Firebase 登入
   useEffect(() => {
@@ -435,41 +430,6 @@ export default function App() {
     return null;
   }, [currentTime, engineLoaded]);
 
-  // 6. 取得 AI 建議
-  const fetchAiAdvice = async () => {
-    if (!analysis) return;
-
-    setIsAiLoading(true);
-    setAiAdvice('');
-
-    try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('未設定 Gemini API Key');
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-      const channelNames = analysis.activeChannels.length > 0
-        ? analysis.activeChannels.map(ch => `${ch.id} ${ch.name}通道`).join('、')
-        : '無通道';
-
-      const prompt = `你是一位專業的人類圖分析師。使用者是人類圖「反映者」，今天流日接通了（${channelNames}），讓他暫時獲得了（${analysis.currentType}）的能量外衣。請給予一段 150 字內的實用建議，說明今天的動力狀態、適合做什麼，以及能量退去後的提醒。\n\n【重要要求】：請直接給予分析與建議，語氣要溫和、中立且專注於當下體驗。絕對不要包含任何結尾的推銷、廣告、課程報名邀請或外部連結。`;
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      setAiAdvice(text);
-    } catch (error) {
-      console.error('取得 AI 建議時發生錯誤:', error);
-      setAiAdvice(`無法取得宇宙訊號。錯誤訊息：${error.message || '未知錯誤'}。請檢查 API Key 是否正確或網路連線。`);
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
 
   if (errorMsg) {
     return (
@@ -665,51 +625,6 @@ export default function App() {
             )}
           </section>
         </div>
-
-        {/* AI 宇宙訊號解讀 */}
-        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg shadow-indigo-900/10">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2 text-indigo-300">
-              <MessageSquareText className="w-5 h-5" /> 宇宙訊號 AI 解讀
-            </h2>
-            <button
-              onClick={fetchAiAdvice}
-              disabled={isAiLoading}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${isAiLoading
-                ? 'bg-indigo-900/50 text-indigo-400 cursor-not-allowed border border-indigo-700/50'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30'
-                }`}
-            >
-              {isAiLoading ? (
-                <span className="flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  宇宙訊號接收中...
-                </span>
-              ) : (
-                '接收今日專屬指引'
-              )}
-            </button>
-          </div>
-
-          <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-5 min-h-[120px]">
-            {isAiLoading ? (
-              <div className="flex flex-col items-center justify-center h-full text-indigo-400 gap-3 py-6">
-                <RefreshCw className="w-6 h-6 animate-spin" />
-                <p className="animate-pulse">正在連結星空能量網絡，為您解碼宇宙訊息...</p>
-              </div>
-            ) : aiAdvice ? (
-              <div className="text-slate-300 leading-relaxed whitespace-pre-wrap">
-                {aiAdvice}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-500 italic py-6 gap-2">
-                <MessageSquareText className="w-8 h-8 opacity-50 mb-2 text-slate-600" />
-                <p>點擊上方按鈕，透過 Gemini AI 解構你今天的能量外衣。</p>
-                <p>為您提供這股短暫能量的運用指引與收尾建議。</p>
-              </div>
-            )}
-          </div>
-        </section>
 
         {/* 所有星體流日閘門一覽 */}
         <section className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
