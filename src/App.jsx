@@ -2,14 +2,17 @@ import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useTransits } from './hooks/useTransits';
+import { useAiAdvice } from './hooks/useAiAdvice';
 import MoonSection from './components/MoonSection';
 import TypeSection from './components/TypeSection';
 import ChannelList from './components/ChannelList';
 import PlanetGrid from './components/PlanetGrid';
+import AiAdviceSection from './components/AiAdviceSection';
 
 export default function App() {
   useAuth();
   const { currentTime, transits, analysis, nextLunarReturn, errorMsg } = useTransits();
+  const { advice, loading: aiLoading, error: aiError, regenerate } = useAiAdvice(analysis);
 
   if (errorMsg) {
     return (
@@ -51,6 +54,9 @@ export default function App() {
 
         {/* 月亮特寫區 */}
         <MoonSection transits={transits} analysis={analysis} nextLunarReturn={nextLunarReturn} />
+
+        {/* AI 能量建議 */}
+        <AiAdviceSection advice={advice} loading={aiLoading} error={aiError} onRegenerate={regenerate} />
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* 當前類型狀態區 */}
